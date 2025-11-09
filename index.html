@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Quality Tracker</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use Inter font */
+        html {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+
+    <div class="bg-white w-full max-w-7xl mx-auto rounded-lg shadow-xl p-8">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Water Quality Tracker</h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- LEFT COLUMN: Complaints & Status -->
+            <div class="lg:col-span-1 p-6 border border-gray-200 rounded-lg bg-gray-50 space-y-6">
+                <!-- Section 1: Open Complaints -->
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-700">1. Open Complaints</h2>
+                        <button id="refresh-all-btn" class="text-sm bg-indigo-100 text-indigo-700 font-semibold py-1 px-3 rounded-md hover:bg-indigo-200">
+                            Refresh
+                        </button>
+                    </div>
+                    <div id="complaints-loading" class="text-center text-indigo-600 hidden"><p>Loading complaints...</p></div>
+                    <div id="complaints-container" class="space-y-3 max-h-64 overflow-y-auto">
+                        <!-- Complaints will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Section 2: Live Cooler Status -->
+                <div class="pt-6 border-t border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">2. Live Cooler Status</h2>
+                    <div id="status-loading" class="text-center text-indigo-600 hidden"><p>Loading status...</p></div>
+                    <div id="status-container" class="space-y-3">
+                        <!-- Statuses will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Cleaning Workflow -->
+            <div class="lg:col-span-2 p-6 border border-gray-200 rounded-lg bg-white">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">3. Resolve Issue / Maintenance</h2>
+                <p class="text-sm text-gray-600 mb-4">Select a cooler (especially one with a complaint) and complete the workflow to resolve the issue.</p>
+                
+                <form id="cleaning-form" class="space-y-4">
+                    <!-- Step 1: Select Cooler -->
+                    <div>
+                        <label for="cooler-select" class="block text-sm font-medium text-gray-700">Select Water Cooler:</label>
+                        <select id="cooler-select" name="cooler_id" required class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="">-- Select a Cooler --</option>
+                            <!-- Options filled by JS -->
+                        </select>
+                    </div>
+                    
+                    <!-- Step 2: Upload Before Image -->
+                    <div class="pt-4 border-t border-gray-200">
+                        <label for="before-image" class="block text-sm font-medium text-gray-700">'Before' Image</label>
+                        <p class="text-xs text-gray-500 mb-1">Upload the 'Before' image to verify it needs cleaning.</p>
+                        <div class="flex items-center gap-4">
+                            <input type="file" id="before-image" name="before_image" accept="image/jpeg, image/png" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100 cursor-pointer"/>
+                            <button type="button" id="check-before-btn" class="flex-shrink-0 bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                Check
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 'Before' Image Result -->
+                    <div id="before-loading" class="mt-4 text-center text-yellow-600 hidden"><p>Analyzing 'Before' image...</p></div>
+                    <div id="before-result" class="mt-4 hidden p-3 rounded-md text-sm"></div>
+
+                    <!-- Step 3: Upload After Image & TDS (This is the main form) -->
+                    <div id="after-section" class="space-y-4 pt-4 border-t border-gray-200">
+                        <p class="text-sm font-bold text-gray-700">Submit Resolution Report:</p>
+                        <div>
+                            <label for="after-image" class="block text-sm font-medium text-gray-700">'After' Image (Required)</label>
+                            <input type="file" id="after-image" name="after_image" accept="image/jpeg, image/png" required class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"/>
+                        </div>
+
+                        <div>
+                            <label for="tds-image" class="block text-sm font-medium text-gray-700">'After' TDS Reading (Required)</label>
+                            <input type="file" id="tds-image" name="tds_image" accept="image/jpeg, image/png" required 
+                                   class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
+                        </div>
+
+                        <button type="submit" id="submit-report-btn" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-200">
+                            Submit Final Report (Check Cleanliness & TDS)
+                        </button>
+                    </div>
+
+                    <!-- Final Report Result -->
+                    <div id="report-loading" class="mt-4 text-center text-green-600 hidden"><p>Verifying 'After' image & 'TDS' image...</p></div>
+                    <div id="report-result" class="mt-4 hidden p-3 rounded-md text-sm"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+        
+        // --- Global State ---
+        let openComplaints = {}; // Stores { "cooler-1": "complaint-id-123", ... }
+
+        // --- Element References ---
+        const cleaningForm = document.getElementById('cleaning-form');
+        const coolerSelect = document.getElementById('cooler-select');
+        const beforeImageInput = document.getElementById('before-image');
+        const checkBeforeBtn = document.getElementById('check-before-btn');
+        const beforeLoadingEl = document.getElementById('before-loading');
+        const beforeResultEl = document.getElementById('before-result');
+        const afterImageInput = document.getElementById('after-image');
+        const tdsImageInput = document.getElementById('tds-image'); 
+        const reportLoadingEl = document.getElementById('report-loading');
+        const reportResultEl = document.getElementById('report-result');
+        
+        const refreshAllBtn = document.getElementById('refresh-all-btn');
+        const statusContainer = document.getElementById('status-container');
+        const statusLoadingEl = document.getElementById('status-loading');
+        const complaintsContainer = document.getElementById('complaints-container');
+        const complaintsLoadingEl = document.getElementById('complaints-loading');
+
+        // --- Main Data Loading Function ---
+        async function loadAllData() {
+            loadStatus();
+            loadComplaints();
+        }
+
+        // --- 1. Load Complaints ---
+        async function loadComplaints() {
+            complaintsLoadingEl.classList.remove('hidden');
+            complaintsContainer.innerHTML = '';
+            openComplaints = {}; // Clear the state
+
+            try {
+                const response = await fetch(`${API_URL}/get-complaints`, { method: 'GET' });
+                const complaintsData = await response.json();
+                if (!response.ok) throw new Error("Could not fetch complaints");
+
+                let hasComplaints = false;
+                for (const complaintId in complaintsData) {
+                    const complaint = complaintsData[complaintId];
+                    if (complaint.status === "OPEN") {
+                        hasComplaints = true;
+                        // Store the first open complaint ID for this cooler
+                        if (!openComplaints[complaint.cooler_id]) {
+                             openComplaints[complaint.cooler_id] = complaintId;
+                        }
+                       
+                        const complaintEl = document.createElement('div');
+                        complaintEl.className = "p-3 bg-white rounded-md shadow-sm border border-red-200";
+                        
+                        const typeText = complaint.complaint_type === 'DIRTY_TANK' ? 'Tank Dirty' : 'Bad TDS';
+                        
+                        complaintEl.innerHTML = `
+                            <div class="flex items-center justify-between">
+                                <span class="font-semibold text-red-700">${complaint.cooler_name}</span>
+                                <span class="text-sm font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded">${typeText}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                Raised: ${new Date(complaint.date_raised).toLocaleString()}
+                            </div>
+                        `;
+                        complaintsContainer.appendChild(complaintEl);
+                    }
+                }
+
+                if (!hasComplaints) {
+                    complaintsContainer.innerHTML = `<p class="text-sm text-gray-500 text-center">No open complaints. Great job!</p>`;
+                }
+            } catch (error) {
+                complaintsContainer.innerHTML = `<p class="text-red-500 text-sm">Error loading complaints: ${error.message}</p>`;
+            } finally {
+                complaintsLoadingEl.classList.add('hidden');
+            }
+        }
+
+        // --- 2. Load Cooler Status & Populate Dropdown ---
+        async function loadStatus() {
+            statusLoadingEl.classList.remove('hidden');
+            statusContainer.innerHTML = ''; 
+
+            try {
+                const response = await fetch(`${API_URL}/get-status`, { method: 'GET' });
+                const statusData = await response.json();
+                if (!response.ok) throw new Error("Could not fetch status");
+
+                // Save current selection
+                const currentSelection = coolerSelect.value;
+                coolerSelect.innerHTML = '<option value="">-- Select a Cooler --</option>';
+                
+                for (const coolerId in statusData) {
+                    const cooler = statusData[coolerId];
+                    
+                    // Populate dropdown
+                    const option = document.createElement('option');
+                    option.value = coolerId;
+                    option.textContent = cooler.name;
+                    coolerSelect.appendChild(option);
+
+                    // Populate status list
+                    const statusEl = document.createElement('div');
+                    statusEl.className = "p-3 bg-white rounded-md shadow-sm border border-gray-200";
+                    
+                    let statusColor, statusIcon;
+                    if (cooler.status === 'Clean') {
+                        statusColor = 'text-green-600';
+                        statusIcon = `<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                    } else {
+                        // All other statuses (Unknown, Complaint Raised, etc.) are "not clean"
+                        statusColor = 'text-yellow-600';
+                        statusIcon = `<svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+                    }
+                    
+                    statusEl.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold text-gray-800">${cooler.name}</span>
+                            <span class="flex items-center text-sm font-medium ${statusColor}">
+                                ${statusIcon}
+                                <span class="ml-1.5">${cooler.status}</span>
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Last Checked: ${cooler.lastCleaningDate ? new Date(cooler.lastCleaningDate).toLocaleString() : 'N/A'}
+                        </div>
+                    `;
+                    statusContainer.appendChild(statusEl);
+                }
+                
+                // Restore selection
+                coolerSelect.value = currentSelection;
+
+            } catch (error) {
+                statusContainer.innerHTML = `<p class="text-red-500 text-sm">Error loading status: ${error.message}</p>`;
+            } finally {
+                statusLoadingEl.classList.add('hidden');
+            }
+        }
+
+        // --- 3. Check 'Before' Image Button ---
+        checkBeforeBtn.addEventListener('click', async () => {
+            const coolerId = coolerSelect.value;
+            const beforeFile = beforeImageInput.files[0];
+
+            if (!coolerId || !beforeFile) {
+                alert("Please select a cooler and a 'Before' image.");
+                return;
+            }
+
+            beforeLoadingEl.classList.remove('hidden');
+            beforeResultEl.classList.add('hidden');
+            reportResultEl.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('cooler_id', coolerId);
+            formData.append('before_image', beforeFile);
+
+            try {
+                const response = await fetch(`${API_URL}/check-before-image`, { method: 'POST', body: formData });
+                const resultText = await response.text();
+                if (!response.ok) throw new Error(resultText);
+
+                if (resultText.includes('NEEDS CLEANING')) {
+                    beforeResultEl.textContent = "VERIFIED: Tank needs cleaning. Please proceed with resolution.";
+                    beforeResultEl.className = "mt-4 p-3 rounded-md text-sm bg-yellow-100 text-yellow-800";
+                } else if (resultText.includes('CLEAN')) {
+                    beforeResultEl.textContent = "VERIFIED: This tank already looks clean. You can still submit a report to update TDS.";
+                    beforeResultEl.className = "mt-4 p-3 rounded-md text-sm bg-green-100 text-green-800";
+                } else {
+                    beforeResultEl.textContent = `Unexpected response: ${resultText}`;
+                }
+                beforeResultEl.classList.remove('hidden');
+            } catch (error) {
+                beforeResultEl.textContent = `Error: ${error.message}`;
+                beforeResultEl.className = "mt-4 p-3 rounded-md text-sm bg-red-100 text-red-800";
+                beforeResultEl.classList.remove('hidden');
+            } finally {
+                beforeLoadingEl.classList.add('hidden');
+            }
+        });
+
+        // --- 4. Submit Final Report (Form Submission) ---
+        cleaningForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); 
+            const coolerId = coolerSelect.value;
+            const afterFile = afterImageInput.files[0];
+            const tdsFile = tdsImageInput.files[0]; 
+
+            if (!coolerId || !afterFile || !tdsFile) {
+                alert("Please select a cooler, 'After' image, and 'TDS' image.");
+                return;
+            }
+
+            reportLoadingEl.classList.remove('hidden');
+            reportResultEl.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('cooler_id', coolerId);
+            formData.append('after_image', afterFile);
+            formData.append('tds_image', tdsFile); 
+
+            // *** NEW LOGIC: Check if this resolves an open complaint ***
+            if (openComplaints[coolerId]) {
+                formData.append('complaint_id', openComplaints[coolerId]);
+                console.log(`Attaching complaint ID ${openComplaints[coolerId]} to this report.`);
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/submit-cleaning-report`, { method: 'POST', body: formData });
+                const resultText = await response.text();
+                if (!response.ok) throw new Error(resultText);
+
+                // Success
+                reportResultEl.textContent = resultText; // Server now sends detailed success message
+                reportResultEl.className = "mt-4 p-3 rounded-md text-sm bg-green-100 text-green-800";
+                
+                cleaningForm.reset();
+                beforeResultEl.classList.add('hidden');
+                
+                loadAllData(); // Refresh both lists
+
+            } catch (error) {
+                // Failure
+                reportResultEl.textContent = `Error: ${error.message}`;
+                reportResultEl.className = "mt-4 p-3 rounded-md text-sm bg-red-100 text-red-800";
+            } finally {
+                reportLoadingEl.classList.add('hidden');
+                reportResultEl.classList.remove('hidden');
+            }
+        });
+
+        // --- Event Listeners ---
+        refreshAllBtn.addEventListener('click', loadAllData);
+        document.addEventListener('DOMContentLoaded', loadAllData);
+
+    </script>
+</body>
+</html>

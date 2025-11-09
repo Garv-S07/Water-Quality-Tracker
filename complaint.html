@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <title>Water Quality Complaint</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use Inter font */
+        html {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+
+    <div class="w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        <!-- Left Column: Complaint Form -->
+        <div class="bg-white w-full rounded-lg shadow-xl p-8">
+            <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Report an Issue</h1>
+            <p class="text-center text-gray-600 mb-6">Having an issue with a water cooler? Let us know.</p>
+
+            <form id="complaint-form" class="space-y-6">
+                
+                <!-- Step 1: Select Cooler -->
+                <div>
+                    <label for="cooler-select" class="block text-sm font-medium text-gray-700">Which water cooler?</label>
+                    <select id="cooler-select" name="cooler_id" required class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">-- Select a Cooler --</option>
+                        <!-- Options will be loaded from server -->
+                    </select>
+                </div>
+
+                <!-- Step 2: Complaint Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">What's the problem?</label>
+                    <fieldset class="mt-2 space-y-2">
+                        <div class="flex items-center">
+                            <input id="type-dirty" name="complaint_type" type="radio" value="DIRTY_TANK" required class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                            <label for="type-dirty" class="ml-3 block text-sm text-gray-700">The tank looks dirty or unclean</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input id="type-tds" name="complaint_type" type="radio" value="BAD_TDS" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                            <label for="type-tds" class="ml-3 block text-sm text-gray-700">Water tastes bad / TDS issue</label>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <!-- Step 3: Optional Problem Image -->
+                <div>
+                    <label for="problem-image" class="block text-sm font-medium text-gray-700">Upload a photo (Optional)</label>
+                    <p class="text-xs text-gray-500 mb-1">A picture of the problem helps us resolve it faster.</p>
+                    <input type="file" id="problem-image" name="problem_image" accept="image/jpeg, image/png"
+                           class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 cursor:pointer"/>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="pt-4">
+                    <button type="submit" id="submit-btn" class="w-full bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition duration-200">
+                        Submit Complaint
+                    </button>
+                </div>
+            </form>
+
+            <!-- Loading and Result Messages -->
+            <div id="loading" class="mt-4 text-center text-indigo-600 hidden"><p>Submitting...</p></div>
+            <div id="result-message" class="mt-4 hidden p-3 rounded-md text-sm"></div>
+        </div>
+
+        <!-- Right Column: Live Status -->
+        <div class="bg-white w-full rounded-lg shadow-xl p-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-700">Live Cooler Status</h2>
+                <button id="refresh-status-btn" class="text-sm bg-indigo-100 text-indigo-700 font-semibold py-1 px-3 rounded-md hover:bg-indigo-200">
+                    Refresh
+                </button>
+            </div>
+            <div id="status-loading" class="text-center text-indigo-600 hidden"><p>Loading status...</p></div>
+            <div id="status-container" class="space-y-3 max-h-[60vh] overflow-y-auto">
+                <!-- Statuses will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+        
+        // Form Elements
+        const complaintForm = document.getElementById('complaint-form');
+        const coolerSelect = document.getElementById('cooler-select');
+        const problemImageInput = document.getElementById('problem-image');
+        const submitBtn = document.getElementById('submit-btn');
+        const loadingEl = document.getElementById('loading');
+        const resultEl = document.getElementById('result-message');
+
+        // Status Elements
+        const refreshStatusBtn = document.getElementById('refresh-status-btn');
+        const statusContainer = document.getElementById('status-container');
+        const statusLoadingEl = document.getElementById('status-loading');
+
+
+        // 1. Load Cooler List & Statuses on Page Load
+        // This function now does both jobs: fills the dropdown AND the status list
+        async function loadStatusAndCoolers() {
+            statusLoadingEl.classList.remove('hidden');
+            statusContainer.innerHTML = ''; 
+
+            try {
+                const response = await fetch(`${API_URL}/get-status`, { method: 'GET' });
+                const statusData = await response.json();
+                if (!response.ok) throw new Error("Could not fetch cooler list");
+
+                // Save current selection to restore it
+                const currentSelection = coolerSelect.value;
+                coolerSelect.innerHTML = '<option value="">-- Select a Cooler --</option>';
+                
+                for (const coolerId in statusData) {
+                    const cooler = statusData[coolerId];
+                    
+                    // --- Job 1: Populate Dropdown ---
+                    const option = document.createElement('option');
+                    option.value = coolerId;
+                    option.textContent = cooler.name;
+                    coolerSelect.appendChild(option);
+
+                    // --- Job 2: Populate Status List ---
+                    const statusEl = document.createElement('div');
+                    statusEl.className = "p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200";
+                    
+                    let statusColor, statusIcon;
+                    if (cooler.status === 'Clean') {
+                        statusColor = 'text-green-600';
+                        statusIcon = `<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                    } else {
+                        // All other statuses (Unknown, Complaint Raised, etc.) are "not clean"
+                        statusColor = 'text-yellow-600';
+                        statusIcon = `<svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+                    }
+                    
+                    statusEl.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold text-gray-800">${cooler.name}</span>
+                            <span class="flex items-center text-sm font-medium ${statusColor}">
+                                ${statusIcon}
+                                <span class="ml-1.5">${cooler.status}</span>
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Last Checked: ${cooler.lastCleaningDate ? new Date(cooler.lastCleaningDate).toLocaleString() : 'N/A'}
+                        </div>
+                    `;
+                    statusContainer.appendChild(statusEl);
+                }
+                
+                // Restore selection
+                coolerSelect.value = currentSelection;
+
+            } catch (error) {
+                resultEl.textContent = `Error: ${error.message}. Please reload.`;
+                resultEl.className = "mt-4 p-3 rounded-md text-sm bg-red-100 text-red-800";
+                resultEl.classList.remove('hidden');
+            } finally {
+                statusLoadingEl.classList.add('hidden');
+            }
+        }
+
+        // 2. Handle Form Submission
+        complaintForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loadingEl.classList.remove('hidden');
+            resultEl.classList.add('hidden');
+            submitBtn.disabled = true;
+
+            const formData = new FormData(complaintForm);
+            
+            try {
+                const response = await fetch(`${API_URL}/raise-complaint`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const resultText = await response.text();
+                if (!response.ok) throw new Error(resultText);
+
+                // Success
+                resultEl.textContent = "Success! Your complaint has been submitted and our team has been notified.";
+                resultEl.className = "mt-4 p-3 rounded-md text-sm bg-green-100 text-green-800";
+                complaintForm.reset();
+                
+                // Refresh the status list to show the new "Complaint Raised" status
+                loadStatusAndCoolers(); 
+
+            } catch (error) {
+                // Failure
+                resultEl.textContent = `Error: ${error.message}`;
+                resultEl.className = "mt-4 p-3 rounded-md text-sm bg-red-100 text-red-800";
+            } finally {
+                loadingEl.classList.add('hidden');
+                resultEl.classList.remove('hidden');
+                submitBtn.disabled = false;
+            }
+        });
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', loadStatusAndCoolers);
+        refreshStatusBtn.addEventListener('click', loadStatusAndCoolers);
+
+    </script>
+</body>
+</html>
